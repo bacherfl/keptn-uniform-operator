@@ -152,9 +152,7 @@ spec:
                 properties:
                   apiToken:
                     properties:
-                      value:
-                        type: string
-                      valueFrom:
+                      fromSecret:
                         description: Source for the environment variable's value.
                           Cannot be used if value is not empty.
                         properties:
@@ -166,15 +164,16 @@ spec:
                         - field
                         - secretName
                         type: object
+                      value:
+                        type: string
                     type: object
+                  apiURL:
+                    type: string
                   disableSSLVerification:
                     type: boolean
-                  keptnApiUrl:
-                    type: string
                 required:
                 - apiToken
-                - disableSSLVerification
-                - keptnApiUrl
+                - apiURL
                 type: object
             required:
             - events

@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -43,6 +44,7 @@ type IntegrationReconciler struct {
 //+kubebuilder:rbac:groups=uniform.my.domain,resources=integrations/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=uniform.my.domain,resources=integrations/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -55,8 +57,7 @@ type IntegrationReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
-	//reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	//reqLogger.Info("Reconciling Uniform")
+	log.Info("Reconciling Uniform")
 
 	// Fetch the Uniform instance
 	instance := &uniformv1alpha1.Integration{}
@@ -86,7 +87,7 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	foundDepl := &appsv1.Deployment{}
 	err = r.Get(context.TODO(), types.NamespacedName{Name: deplForCR.Name, Namespace: deplForCR.Namespace}, foundDepl)
 	if err != nil && errors.IsNotFound(err) {
-		//reqLogger.Info("Creating a new Deployment", "Deployment.Namespace", deplForCR.Namespace, "Deployment.Name", deplForCR.Name)
+		log.Info("Creating a new Deployment", "Deployment.Namespace", deplForCR.Namespace, "Deployment.Name", deplForCR.Name)
 		err = r.Create(context.TODO(), deplForCR)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -97,7 +98,7 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	}
 
 	if strings.Contains(foundDepl.Spec.Template.Labels["app.kubernetes.io/managed-by"], "skaffold") {
-		//reqLogger.Info("Not upgrading resource managed by skaffold", "Deployment.Namespace", foundDepl.Namespace, "Deployment.Name", foundDepl.Name)
+		log.Info("Not upgrading resource managed by skaffold", "Deployment.Namespace", foundDepl.Namespace, "Deployment.Name", foundDepl.Name)
 		// if the pod is managed by skaffold (i.e., a dev is currently debugging it, do not overwrite the pod
 		retriggerReconcile = true
 		return reconcile.Result{}, err
@@ -107,12 +108,12 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	err = r.Update(context.TODO(), foundDepl)
 
 	if err != nil {
-		//reqLogger.Error(err, "Could not update service")
+		log.Error(err, "Could not update service")
 		return reconcile.Result{}, err
 	}
 
 	// Deployment already exists - don't requeue
-	//reqLogger.Info("Updated deployment", "Deployment.Namespace", foundDepl.Namespace, "Deployment.Name", foundDepl.Name)
+	log.Info("Updated deployment", "Deployment.Namespace", foundDepl.Namespace, "Deployment.Name", foundDepl.Name)
 
 	serviceForCR := newServiceForCR(instance)
 
@@ -124,7 +125,7 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	foundSvc := &corev1.Service{}
 	err = r.Get(context.TODO(), types.NamespacedName{Name: serviceForCR.Name, Namespace: serviceForCR.Namespace}, foundSvc)
 	if err != nil && errors.IsNotFound(err) {
-		//reqLogger.Info("Creating a new Service", "Service.Namespace", serviceForCR.Namespace, "Service.Name", serviceForCR.Name)
+		log.Info("Creating a new Service", "Service.Namespace", serviceForCR.Namespace, "Service.Name", serviceForCR.Name)
 		err = r.Create(context.TODO(), serviceForCR)
 		if err != nil {
 			return reconcile.Result{}, err
@@ -132,7 +133,7 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	}
 
 	// Service already exists - don't requeue
-	//reqLogger.Info("Skip reconcile: Service already exists", "Service.Namespace", foundSvc.Namespace, "Service.Name", foundSvc.Name)
+	log.Info("Skip reconcile: Service already exists", "Service.Namespace", foundSvc.Namespace, "Service.Name", foundSvc.Name)
 
 	if retriggerReconcile {
 		// retrigger reconciliation
@@ -213,7 +214,7 @@ func newDeploymentForCR(cr *uniformv1alpha1.Integration) (*appsv1.Deployment, er
 
 	distributorEnvVars, err := getDistributorEnvVars(cr)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	integrationDeployment.Spec.Template.Spec.Containers[1].Env = distributorEnvVars
@@ -289,7 +290,7 @@ func getDistributorEnvVars(cr *uniformv1alpha1.Integration) ([]corev1.EnvVar, er
 		var err error
 		envVars, err = appendRemoteExecutionEnvVars(envVars, cr.Spec.Remote)
 		if err != nil {
-			return nil, nil
+			return nil, err
 		}
 	} else {
 		envVars = append(envVars, corev1.EnvVar{
@@ -331,7 +332,7 @@ func appendRemoteExecutionEnvVars(vars []corev1.EnvVar, remote *uniformv1alpha1.
 		return nil, errors.NewBadRequest("either spec.remote.apiToken.Value or spec.remote.apiToken.ValueFrom has to be set")
 	}
 
-	if remote.DisableSSLVerification {
+	if remote.DisableSSLVerification != nil && *remote.DisableSSLVerification == false {
 		remoteEnvVars = append(remoteEnvVars, corev1.EnvVar{
 			Name:  "HTTP_SSL_VERIFY",
 			Value: "false",

@@ -33,13 +33,14 @@ type APITokenSpec struct {
 	Value string `json:"value,omitempty"`
 	// Source for the environment variable's value. Cannot be used if value is not empty.
 	// +optional
-	FromSecret *SecretRef `json:"valueFrom,omitempty"`
+	FromSecret *SecretRef `json:"fromSecret,omitempty"`
 }
 
 type RemoteExecutionPlaneSpec struct {
-	APIURL                 string       `json:"keptnApiUrl"`
-	APIToken               APITokenSpec `json:"apiToken"`
-	DisableSSLVerification bool         `json:"disableSSLVerification"`
+	APIURL   string       `json:"apiURL"`
+	APIToken APITokenSpec `json:"apiToken"`
+	// +optional
+	DisableSSLVerification *bool `json:"disableSSLVerification"`
 }
 
 // IntegrationSpec defines the desired state of Integration

@@ -2,15 +2,16 @@ apiVersion: uniform.my.domain/v1alpha1
 kind: Integration
 metadata:
   name: integration-sample
+  namespace: keptn
 spec:
   # Add fields here
   name: "job-executor-service"
   image: "keptnsandbox/job-executor-service:0.1.1"
   events:
-    - "sh.keptn.>"
+    - "sh.keptn.event.deployment.triggered"
 
   remote:
-    apiURL: "http://35.194.15.118/api"
+    apiURL: "my-api-url"
     apiToken:
       fromSecret:
         secretName: "keptn-api-token"
