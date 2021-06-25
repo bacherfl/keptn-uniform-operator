@@ -24,16 +24,34 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type RemoteExecutionPlaneConfig struct {
+type SecretRef struct {
+	SecretName string `json:"secretName"`
+	Field      string `json:"field"`
+}
+
+type APITokenSpec struct {
+	Value string `json:"value,omitempty"`
+	// Source for the environment variable's value. Cannot be used if value is not empty.
+	// +optional
+	FromSecret *SecretRef `json:"valueFrom,omitempty"`
+}
+
+type RemoteExecutionPlaneSpec struct {
+	APIURL                 string       `json:"keptnApiUrl"`
+	APIToken               APITokenSpec `json:"apiToken"`
+	DisableSSLVerification bool         `json:"disableSSLVerification"`
 }
 
 // IntegrationSpec defines the desired state of Integration
 type IntegrationSpec struct {
-	Name   string          `json:"name"`
-	Image  string          `json:"image"`
-	Events []string        `json:"events"`
-	Env    []corev1.EnvVar `json:"env,omitempty"`
-	// TODO: define fields for running in remote execution plane
+	Name   string   `json:"name"`
+	Image  string   `json:"image"`
+	Events []string `json:"events"`
+	// Env allows to pass environment variables to the integration
+	Env []corev1.EnvVar `json:"env,omitempty"`
+	//Remote configuration for the remote execution plane mode
+	// +optional
+	Remote *RemoteExecutionPlaneSpec `json:"remote"`
 }
 
 // IntegrationStatus defines the observed state of Integration

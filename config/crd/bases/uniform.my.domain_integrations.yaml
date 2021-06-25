@@ -37,6 +37,7 @@ spec:
             description: IntegrationSpec defines the desired state of Integration
             properties:
               env:
+                description: Env allows to pass environment variables to the integration
                 items:
                   description: EnvVar represents an environment variable present in
                     a Container.
@@ -146,6 +147,35 @@ spec:
                 type: string
               name:
                 type: string
+              remote:
+                description: Remote configuration for the remote execution plane mode
+                properties:
+                  apiToken:
+                    properties:
+                      value:
+                        type: string
+                      valueFrom:
+                        description: Source for the environment variable's value.
+                          Cannot be used if value is not empty.
+                        properties:
+                          field:
+                            type: string
+                          secretName:
+                            type: string
+                        required:
+                        - field
+                        - secretName
+                        type: object
+                    type: object
+                  disableSSLVerification:
+                    type: boolean
+                  keptnApiUrl:
+                    type: string
+                required:
+                - apiToken
+                - disableSSLVerification
+                - keptnApiUrl
+                type: object
             required:
             - events
             - image

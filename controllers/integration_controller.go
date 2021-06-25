@@ -73,13 +73,16 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	}
 	retriggerReconcile := false
 
-	deplForCR := newDeploymentForCR(instance)
+	deplForCR, err := newDeploymentForCR(instance)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	// Set Uniform instance as the owner and controller
 	if err := controllerutil.SetControllerReference(instance, deplForCR, r.Scheme); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Check if this Pod already exists
+	// Check if the desired Deployment already exists
 	foundDepl := &appsv1.Deployment{}
 	err = r.Get(context.TODO(), types.NamespacedName{Name: deplForCR.Name, Namespace: deplForCR.Namespace}, foundDepl)
 	if err != nil && errors.IsNotFound(err) {
@@ -111,7 +114,6 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	// Deployment already exists - don't requeue
 	//reqLogger.Info("Updated deployment", "Deployment.Namespace", foundDepl.Namespace, "Deployment.Name", foundDepl.Name)
 
-	// TODO actually we don't need a service for uniform integrations
 	serviceForCR := newServiceForCR(instance)
 
 	if err := controllerutil.SetControllerReference(instance, serviceForCR, r.Scheme); err != nil {
@@ -148,15 +150,7 @@ func (r *IntegrationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // newDeploymentForCR returns a deployment with the same name/namespace as the cr
-func newDeploymentForCR(cr *uniformv1alpha1.Integration) *appsv1.Deployment {
-	topics := ""
-
-	for i, topic := range cr.Spec.Events {
-		topics = topics + topic
-		if i < len(cr.Spec.Events)-1 {
-			topics = topics + ","
-		}
-	}
+func newDeploymentForCR(cr *uniformv1alpha1.Integration) (*appsv1.Deployment, error) {
 
 	f := func(s int32) *int32 {
 		return &s
@@ -170,7 +164,7 @@ func newDeploymentForCR(cr *uniformv1alpha1.Integration) *appsv1.Deployment {
 		version = split[1]
 	}
 
-	return &appsv1.Deployment{
+	integrationDeployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cr.Name,
 			Namespace: "keptn",
@@ -204,60 +198,6 @@ func newDeploymentForCR(cr *uniformv1alpha1.Integration) *appsv1.Deployment {
 						{
 							Name:  "distributor",
 							Image: "keptn/distributor:0.8.4",
-							Env: []corev1.EnvVar{
-								{
-									Name:  "PUBSUB_RECIPIENT",
-									Value: cr.Name,
-								},
-								{
-									Name:  "PUBSUB_TOPIC",
-									Value: topics,
-								},
-								{
-									Name:  "PUBSUB_URL",
-									Value: "nats://keptn-nats-cluster",
-								},
-								{
-									Name: "VERSION",
-									ValueFrom: &corev1.EnvVarSource{
-										FieldRef: &corev1.ObjectFieldSelector{
-											APIVersion: "v1",
-											FieldPath:  "metadata.labels['app.kubernetes.io/version']",
-										},
-									},
-								},
-								{
-									Name:  "K8S_DEPLOYMENT_NAME",
-									Value: cr.Name,
-								},
-								{
-									Name: "K8S_POD_NAME",
-									ValueFrom: &corev1.EnvVarSource{
-										FieldRef: &corev1.ObjectFieldSelector{
-											APIVersion: "v1",
-											FieldPath:  "metadata.name",
-										},
-									},
-								},
-								{
-									Name: "K8S_NAMESPACE",
-									ValueFrom: &corev1.EnvVarSource{
-										FieldRef: &corev1.ObjectFieldSelector{
-											APIVersion: "v1",
-											FieldPath:  "metadata.namespace",
-										},
-									},
-								},
-								{
-									Name: "K8S_NODE_NAME",
-									ValueFrom: &corev1.EnvVarSource{
-										FieldRef: &corev1.ObjectFieldSelector{
-											APIVersion: "v1",
-											FieldPath:  "spec.nodeName",
-										},
-									},
-								},
-							},
 							SecurityContext: &corev1.SecurityContext{
 								RunAsUser:                intp(65532),
 								RunAsNonRoot:             boolp(true),
@@ -270,6 +210,138 @@ func newDeploymentForCR(cr *uniformv1alpha1.Integration) *appsv1.Deployment {
 			},
 		},
 	}
+
+	distributorEnvVars, err := getDistributorEnvVars(cr)
+	if err != nil {
+		return nil, nil
+	}
+
+	integrationDeployment.Spec.Template.Spec.Containers[1].Env = distributorEnvVars
+
+	return integrationDeployment, nil
+}
+
+func getDistributorEnvVars(cr *uniformv1alpha1.Integration) ([]corev1.EnvVar, error) {
+	topics := ""
+
+	for i, topic := range cr.Spec.Events {
+		if cr.Spec.Remote != nil && strings.ContainsAny(topic, "*>") {
+			return nil, errors.NewBadRequest("cannot subscribe to wildcard topics in remote execution plane mode")
+		}
+		topics = topics + topic
+		if i < len(cr.Spec.Events)-1 {
+			topics = topics + ","
+		}
+	}
+
+	envVars := []corev1.EnvVar{
+		{
+			Name:  "PUBSUB_RECIPIENT",
+			Value: cr.Name,
+		},
+		{
+			Name:  "PUBSUB_TOPIC",
+			Value: topics,
+		},
+		{
+			Name: "VERSION",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.labels['app.kubernetes.io/version']",
+				},
+			},
+		},
+		{
+			Name:  "K8S_DEPLOYMENT_NAME",
+			Value: cr.Name,
+		},
+		{
+			Name: "K8S_POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.name",
+				},
+			},
+		},
+		{
+			Name: "K8S_NAMESPACE",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "metadata.namespace",
+				},
+			},
+		},
+		{
+			Name: "K8S_NODE_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					APIVersion: "v1",
+					FieldPath:  "spec.nodeName",
+				},
+			},
+		},
+	}
+
+	if cr.Spec.Remote != nil {
+		var err error
+		envVars, err = appendRemoteExecutionEnvVars(envVars, cr.Spec.Remote)
+		if err != nil {
+			return nil, nil
+		}
+	} else {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "PUBSUB_URL",
+			Value: "nats://keptn-nats-cluster",
+		})
+	}
+
+	return envVars, nil
+}
+
+func appendRemoteExecutionEnvVars(vars []corev1.EnvVar, remote *uniformv1alpha1.RemoteExecutionPlaneSpec) ([]corev1.EnvVar, error) {
+	remoteEnvVars := []corev1.EnvVar{
+		{
+			Name:  "KEPTN_API_ENDPOINT",
+			Value: remote.APIURL,
+		},
+	}
+
+	var apiTokenEnvVar corev1.EnvVar
+	if remote.APIToken.Value != "" && remote.APIToken.FromSecret == nil {
+		apiTokenEnvVar = corev1.EnvVar{
+			Name:  "KEPTN_API_TOKEN",
+			Value: remote.APIToken.Value,
+		}
+	} else if remote.APIToken.Value == "" && remote.APIToken.FromSecret != nil {
+		apiTokenEnvVar = corev1.EnvVar{
+			Name: "KEPTN_API_TOKEN",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					Key: remote.APIToken.FromSecret.Field,
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: remote.APIToken.FromSecret.SecretName,
+					},
+				},
+			},
+		}
+	} else {
+		return nil, errors.NewBadRequest("either spec.remote.apiToken.Value or spec.remote.apiToken.ValueFrom has to be set")
+	}
+
+	if remote.DisableSSLVerification {
+		remoteEnvVars = append(remoteEnvVars, corev1.EnvVar{
+			Name:  "HTTP_SSL_VERIFY",
+			Value: "false",
+		})
+	}
+
+	remoteEnvVars = append(remoteEnvVars, apiTokenEnvVar)
+
+	vars = append(vars, remoteEnvVars...)
+	return vars, nil
 }
 
 func boolp(b bool) *bool {

@@ -8,11 +8,18 @@ spec:
   image: "keptnsandbox/job-executor-service:0.1.1"
   events:
     - "sh.keptn.>"
+
+  remote:
+    apiURL: "http://35.194.15.118/api"
+    apiToken:
+      fromSecret:
+        secretName: "keptn-api-token"
+        field: "keptn-api-token"
   env:
     - name: INIT_CONTAINER_CONFIGURATION_SERVICE_API_ENDPOINT
-      value: "http://configuration-service:8080"
+      value: "http://localhost:8081/configuration-service"
     - name: CONFIGURATION_SERVICE
-      value: 'http://configuration-service:8080'
+      value: 'http://localhost:8081/configuration-service'
     - name: JOB_NAMESPACE
       value: 'keptn'
     - name: INIT_CONTAINER_IMAGE
