@@ -24,12 +24,16 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type RemoteExecutionPlaneConfig struct {
+}
+
 // IntegrationSpec defines the desired state of Integration
 type IntegrationSpec struct {
 	Name   string          `json:"name"`
 	Image  string          `json:"image"`
 	Events []string        `json:"events"`
 	Env    []corev1.EnvVar `json:"env,omitempty"`
+	// TODO: define fields for running in remote execution plane
 }
 
 // IntegrationStatus defines the observed state of Integration

@@ -88,7 +88,6 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-
 		// Pod created successfully - don't requeue
 	} else if err != nil {
 		return reconcile.Result{}, err
@@ -96,6 +95,7 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 
 	if strings.Contains(foundDepl.Spec.Template.Labels["app.kubernetes.io/managed-by"], "skaffold") {
 		//reqLogger.Info("Not upgrading resource managed by skaffold", "Deployment.Namespace", foundDepl.Namespace, "Deployment.Name", foundDepl.Name)
+		// if the pod is managed by skaffold (i.e., a dev is currently debugging it, do not overwrite the pod
 		retriggerReconcile = true
 		return reconcile.Result{}, err
 	}
@@ -111,6 +111,7 @@ func (r *IntegrationReconciler) Reconcile(ctx context.Context, request ctrl.Requ
 	// Deployment already exists - don't requeue
 	//reqLogger.Info("Updated deployment", "Deployment.Namespace", foundDepl.Namespace, "Deployment.Name", foundDepl.Name)
 
+	// TODO actually we don't need a service for uniform integrations
 	serviceForCR := newServiceForCR(instance)
 
 	if err := controllerutil.SetControllerReference(instance, serviceForCR, r.Scheme); err != nil {
