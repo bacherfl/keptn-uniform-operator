@@ -1,0 +1,19 @@
+apiVersion: uniform.my.domain/v1alpha1
+kind: Integration
+metadata:
+  name: integration-sample
+spec:
+  # Add fields here
+  name: "job-executor-service"
+  image: "keptnsandbox/job-executor-service:0.1.1"
+  events:
+    - "sh.keptn.>"
+  env:
+    - name: INIT_CONTAINER_CONFIGURATION_SERVICE_API_ENDPOINT
+      value: "http://configuration-service:8080"
+    - name: CONFIGURATION_SERVICE
+      value: 'http://configuration-service:8080'
+    - name: JOB_NAMESPACE
+      value: 'keptn'
+    - name: INIT_CONTAINER_IMAGE
+      value: 'keptnsandbox/job-executor-service-initcontainer:0.1.1'
