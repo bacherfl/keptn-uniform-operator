@@ -1,0 +1,7 @@
+apiVersion: uniform.my.domain/v1alpha1
+kind: Sequence
+metadata:
+  name: sequence-sample
+spec:
+  # Add fields here
+  foo: bar

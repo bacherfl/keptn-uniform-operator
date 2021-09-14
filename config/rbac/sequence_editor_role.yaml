@@ -1,0 +1,24 @@
+# permissions for end users to edit sequences.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sequence-editor-role
+rules:
+- apiGroups:
+  - uniform.my.domain
+  resources:
+  - sequences
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - uniform.my.domain
+  resources:
+  - sequences/status
+  verbs:
+  - get
